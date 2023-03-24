@@ -55,7 +55,19 @@ app.get("/load-points", (req, res) => {
   });
 });
 
+// Require express module
+const express = require('express');
 
+// Create an express app
+const app = express();
+
+// Use express.static to serve files from public folder
+app.use(express.static('public'));
+
+// Listen on port 10000
+app.listen(10000, () => {
+  console.log('Server is listening on port 10000');
+});
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
