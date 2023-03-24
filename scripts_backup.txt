@@ -1,0 +1,310 @@
+// Initialize Three.js 3D graph
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xe0e0e0);
+document.getElementById('3d-graph').appendChild(renderer.domElement);
+camera.position.z = 30;
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+controls.screenSpacePanning = false;
+controls.minDistance = 20;
+controls.maxDistance = 50;
+controls.maxPolarAngle = Math.PI / 2;
+
+// Initialize Chart.js 2D graphs
+//const xyGraph = new Chart(document.getElementById("xy-graph"), {
+//  type: "scatter",
+//  data: { datasets: [] },
+//  options: { scales: { x: { min: -10, max: 10 }, y: { min: -10, max: 10 } } },
+//});
+//const xzGraph = new Chart(document.getElementById("xz-graph"), {
+//  type: "scatter",
+//  data: { datasets: [] },
+//  options: { scales: { x: { min: -10, max: 10 }, y: { min: -10, max: 10 } } },
+//});
+//const yzGraph = new Chart(document.getElementById("yz-graph"), {
+//  type: "scatter",
+//  data: { datasets: [] },
+//  options: { scales: { x: { min: -10, max: 10 }, y: { min: -10, max: 10 } } },
+//});
+
+const pointNameInput = document.getElementById("point-name");
+const xValueInput = document.getElementById("x-value");
+const yValueInput = document.getElementById("y-value");
+const zValueInput = document.getElementById("z-value");
+const addButton = document.getElementById("add-button");
+
+addButton.addEventListener("click", () => {
+  const pointName = pointNameInput.value;
+  const xValue = parseFloat(xValueInput.value);
+  const yValue = parseFloat(yValueInput.value);
+  const zValue = parseFloat(zValueInput.value);
+
+  if (!isNaN(xValue) && !isNaN(yValue) && !isNaN(zValue)) {
+    addPointToScene(pointName, xValue, yValue, zValue);
+    savePoint(pointName, xValue, yValue, zValue)
+      .then(() => {
+        console.log("Point saved");
+      })
+      .catch((error) => {
+        console.error("Error saving point:", error);
+      });
+    const color = new THREE.Color(xValue / 20, yValue / 20, zValue / 20);
+    const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const material = new THREE.MeshBasicMaterial({ color });
+    const sphere = new THREE.Mesh(geometry, material);
+    sphere.position.set(xValue, yValue, zValue);
+    scene.add(sphere);
+
+    const loader = new THREE.FontLoader();
+    loader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", font => {
+      const textGeometry = new THREE.TextGeometry(pointName, {
+        font: font,
+        size: 0.5,
+        height: 0.1,
+      });
+      const textMaterial = new THREE.MeshBasicMaterial({ color });
+      const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+      textMesh.position.set(xValue + 0.5, yValue + 0.5, zValue + 0.5);
+      scene.add(textMesh);
+    });
+
+    const point = { x: xValue, y: yValue };
+    const pointData = {
+      label: pointName,
+      data: [point],
+      backgroundColor: color.getStyle(),
+      borderColor: color.getStyle(),
+    };
+ //   xyGraph.data.datasets.push(pointData);
+ //   xzGraph.data.datasets.push({ ...pointData, data: [{ x: xValue, y: zValue }] });
+ //   yzGraph.data.datasets.push({ ...pointData, data: [{ x: yValue, y: zValue }] });
+
+ //   xyGraph.update();
+//    xzGraph.update();
+//    yzGraph.update();
+  }
+});
+
+function createCustomAxes(length) {
+  const axesGroup = new THREE.Group();
+  const material = new THREE.LineBasicMaterial({ color: 0x000000 });
+
+
+  // Create the x, y, z axes lines
+  const xLine = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-length, 0, 0),
+    new THREE.Vector3(length, 0, 0),
+  ]);
+  const yLine = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, -length, 0),
+    new THREE.Vector3(0, length, 0),
+  ]);
+  const zLine = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, -length),
+    new THREE.Vector3(0, 0, length),
+  ]);
+
+  axesGroup.add(new THREE.Line(xLine, material));
+  axesGroup.add(new THREE.Line(yLine, material));
+  axesGroup.add(new THREE.Line(zLine, material));
+
+  // Add integer marks and labels
+  const loader = new THREE.FontLoader();
+  loader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", (font) => {
+    for (let i = -length; i <= length; i++) {
+      if (i === 0) continue;
+
+      // X axis marks and labels
+      createAxisMarkAndLabel(axesGroup, font, i, new THREE.Vector3(i, 0, 0));
+
+      // Y axis marks and labels
+      createAxisMarkAndLabel(axesGroup, font, i, new THREE.Vector3(0, i, 0));
+
+      // Z axis marks and labels
+      createAxisMarkAndLabel(axesGroup, font, i, new THREE.Vector3(0, 0, i));
+    }
+  });
+
+  return axesGroup;
+}
+
+function createAxisMarkAndLabel(group, font, value, position, axis) {
+  const markSize = 0.1;
+  const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+  const markGeometry = new THREE.BoxGeometry(markSize, markSize, markSize);
+  const mark = new THREE.Mesh(markGeometry, material);
+  mark.position.copy(position);
+  group.add(mark);
+
+  const textGeometry = new THREE.TextGeometry(value.toString(), {
+    font: font,
+    size: 0.3,
+    height: 0.1,
+  });
+
+  const textMesh = new THREE.Mesh(textGeometry, material);
+  const offset = 0.5;
+
+  switch (axis) {
+    case "X":
+      textMesh.position.set(position.x - offset, position.y + offset, position.z + offset);
+      break;
+    case "Y":
+      textMesh.position.set(position.x + offset, position.y - offset, position.z + offset);
+      break;
+    case "Z":
+      textMesh.position.set(position.x + offset, position.y + offset, position.z - offset);
+      break;
+  }
+
+  group.add(textMesh);
+}
+
+const customAxes = createCustomAxes(10);
+scene.add(customAxes);
+
+let scene2Dxy, scene2Dxz, scene2Dyz, camera2Dxy, camera2Dxz, camera2Dyz, renderer2Dxy, renderer2Dxz, renderer2Dyz;
+
+addButton.addEventListener("click", () => {
+  const pointName = pointNameInput.value;
+  const xValue = parseFloat(xValueInput.value);
+  const yValue = parseFloat(yValueInput.value);
+  const zValue = parseFloat(zValueInput.value);
+
+  if (!isNaN(xValue) && !isNaN(yValue) && !isNaN(zValue)) {
+    addPointToScene(pointName, xValue, yValue, zValue);
+    savePoint(pointName, xValue, yValue, zValue)
+      .then(() => {
+        console.log("Point saved");
+      })
+      .catch((error) => {
+        console.error("Error saving point:", error);
+      });
+  }
+});
+
+//function createLabelTexture(text) {
+//  const canvas = document.createElement("canvas");
+//  const ctx = canvas.getContext("2d");
+//  ctx.font = "20px Arial";
+//  const textSize = ctx.measureText(text);
+
+//  canvas.width = textSize.width;
+//  canvas.height = parseInt(ctx.font, 10);
+
+//  ctx.fillStyle = "black";
+//  ctx.fillText(text, 0, canvas.height);
+
+//  return new THREE.CanvasTexture(canvas);
+//}
+
+function addPointToScene(pointName, xValue, yValue, zValue) {
+  const color = new THREE.Color(xValue / 20, yValue / 20, zValue / 20);
+  const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+  const material = new THREE.MeshBasicMaterial({ color });
+  const sphere = new THREE.Mesh(geometry, material);
+  sphere.position.set(xValue, yValue, zValue);
+  scene.add(sphere);
+
+ // const labelTexture = createLabelTexture(pointName);
+ // const labelMaterial = new THREE.SpriteMaterial({ map: labelTexture, transparent: true });
+ // const labelSprite = new THREE.Sprite(labelMaterial);
+ // labelSprite.position.set(xValue, yValue + 0.25, zValue);
+ // labelSprite.scale.set(labelTexture.image.width / 200, labelTexture.image.height / 200, 1);
+ // scene.add(labelSprite);
+
+const loader = new THREE.FontLoader();
+  loader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", (font) => {
+    const textGeometry = new THREE.TextGeometry(pointName, {
+      font: font,
+      size: 0.2,
+      height: 0.01,
+    });
+
+    const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+    textMesh.position.set(xValue + 0.2, yValue + 0.2, zValue);
+    scene.add(textMesh);
+ });
+}
+
+//function init() {
+  // ...
+
+  // Set up 2D scenes, cameras, and renderers
+ // scene2Dxy = new THREE.Scene();
+ // scene2Dxz = new THREE.Scene();
+ // scene2Dyz = new THREE.Scene();
+
+//  camera2Dxy = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 1000);
+//  camera2Dxz = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 1000);
+//  camera2Dyz = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 1000);
+
+//  camera2Dxy.position.set(0, 0, 20);
+//  camera2Dxz.position.set(0, 0, 20);
+//  camera2Dyz.position.set(0, 0, 20);
+
+//  camera2Dxy.lookAt(scene2Dxy.position);
+//  camera2Dxz.lookAt(scene2Dxz.position);
+//  camera2Dyz.lookAt(scene2Dyz.position);
+
+//  renderer2Dxy = create2DRenderer();
+//  renderer2Dxz = create2DRenderer();
+//  renderer2Dyz = create2DRenderer();
+
+//  document.getElementById("2Dxy").appendChild(renderer2Dxy.domElement);
+//  document.getElementById("2Dxz").appendChild(renderer2Dxz.domElement);
+//  document.getElementById("2Dyz").appendChild(renderer2Dyz.domElement);
+
+// ...
+//}
+
+function savePoint(pointName, xValue, yValue, zValue) {
+  return fetch("http://localhost:3000/save-point", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pointName, xValue, yValue, zValue }),
+  });
+}
+
+function loadPoints() {
+  return fetch("http://localhost:3000/load-points")
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Error loading points");
+      }
+      return response.json();
+    })
+    .then((points) => {
+      points.forEach((point) => {
+        const { pointName, xValue, yValue, zValue } = point;
+        addPointToScene(pointName, xValue, yValue, zValue);
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+    });
+}
+
+//function create2DRenderer() {
+//  const renderer2D = new THREE.WebGLRenderer({ alpha: true });
+//  renderer2D.setSize(window.innerWidth / 3, window.innerHeight / 3);
+//  renderer2D.setClearColor(0xe0e0e0, 1);
+//  return renderer2D;
+//}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+loadPoints();
+animate();
