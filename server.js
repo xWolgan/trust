@@ -56,9 +56,9 @@ app.get("/load-points", (req, res) => {
 });
 
 
-// Listen on port 10000
-app.listen(10000, () => {
-  console.log('Server is listening on port 10000');
+// Listen on port 3000
+app.listen(3000, () => {
+  console.log('Server is listening on port 3000');
 });
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
